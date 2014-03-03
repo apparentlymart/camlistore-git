@@ -94,6 +94,15 @@ class CamliRepo(BackendRepo):
         )
         for ref_key in ref_keys:
             ref_name = ref_key[4:]
+            # TODO: Eventually when camlistore gets a garbage collector
+            # it's gonna go looking for blobrefs inside permanodes to
+            # see what it should keep. Therefore we need to store these
+            # references as full blobrefs (with the sha1- prefix) and
+            # then trim off the prefix for git's benefit.
+            # That's still not really enough since we'd lose the
+            # descendent objects too (trees referenced by commits, etc)
+            # so basically this whole model is a bit flawed and needs to
+            # be rethought if camlistore gets a GC.
             if len(attrs[ref_key]) > 0:
                 self.refs[ref_name] = attrs[ref_key][-1]
 
