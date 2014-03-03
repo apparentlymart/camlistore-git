@@ -104,13 +104,15 @@ class CamliRepo(BackendRepo):
             # so basically this whole model is a bit flawed and needs to
             # be rethought if camlistore gets a GC.
             if len(attrs[ref_key]) > 0:
-                self.refs[ref_name] = attrs[ref_key][-1]
+                self.refs[str(ref_name)] = str(attrs[ref_key][-1])
 
     def get_refs(self):
         return self.refs
 
     def get_peeled(self, name):
-        return None
+        # FIXME: This isn't correct for tags... we need to
+        # keep looking these up until we find an actual commit.
+        return self.refs[name]
 
     def fetch_objects(
         self,
@@ -119,8 +121,39 @@ class CamliRepo(BackendRepo):
         progress,
         get_tagged=None
     ):
-        if False:
-            yield None
+        refs = self.refs  # FIXME: doesn't work for some reason
+        wants = determine_wants(refs)
+
+        shallows = getattr(graph_walker, 'shallow', set())
+        unshallows = getattr(graph_walker, 'unshallow', set())
+
+        if wants == []:
+            if shallows or unshallows:
+                # Do not send a pack in shallow short-circuit path
+                return None
+            return []
+
+        haves = self.object_store.find_common_revisions(graph_walker)
+
+        if shallows or unshallows:
+            haves = []
+
+        def get_parents(commit):
+            if commit.id in shallows:
+                return []
+            return self.get_parents(commit.id, commit)
+
+        return self.object_store.iter_shas(
+            self.object_store.find_missing_objects(
+                haves, wants, progress,
+                get_tagged,
+                get_parents=get_parents,
+            )
+        )
+
+        progress("client wants %r\n" % wants)
+        return [
+        ]
 
 
 class CamliBackend(Backend):
